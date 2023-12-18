@@ -53,10 +53,13 @@ def main():
     connection.connect()
     connection.auth(
         user=jid.getNode(), password=password, resource=jid.getResource())
-    with Popen(args.cmd, stdout=PIPE, stderr=STDOUT) as proc:
+    with Popen(
+            # https://stackoverflow.com/a/12471855
+            ["stdbuf", "-oL"] + args.cmd, stdout=PIPE, stderr=STDOUT,
+            bufsize=1, close_fds=True, text=True,
+            ) as proc:
         with proc.stdout:
-            for line in iter(proc.stdout.readline, b""):
-                line = line.decode(errors="backslashreplace")
+            for line in iter(proc.stdout.readline, ""):
                 if args.debug:
                     logging.info(line)
                 connection.send(
