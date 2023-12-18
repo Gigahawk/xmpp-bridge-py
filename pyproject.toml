@@ -1,0 +1,19 @@
+[tool.poetry]
+name = "xmpp-bridge-py"
+version = "0.1.0"
+description = "Connect command-line programs to XMPP"
+authors = ["Jasper Chan <jasperchan515@gmail.com>"]
+
+[tool.poetry.dependencies]
+python = "^3.10"
+xmpppy = "^0.7.1"
+dnspython = "^2.4.2"
+
+[tool.poetry.scripts]
+xmpp-bridge = "xmpp_bridge_py.main:main"
+
+[tool.poetry.dev-dependencies]
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
