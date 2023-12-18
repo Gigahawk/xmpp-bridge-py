@@ -1,8 +1,19 @@
+import sys
+import logging
 import argparse
 from subprocess import Popen, PIPE, STDOUT
 import os
 
 import xmpp
+
+
+stdout_handler = logging.StreamHandler(stream=sys.stdout)
+logging.basicConfig(
+    level=logging.DEBUG,
+    format='[%(asctime)s] {%(filename)s:%(lineno)d} %(levelname)s - %(message)s',
+    handlers=[stdout_handler]
+)
+
 
 def _get_credentials():
     jid =  os.environ.get("XMPPBRIDGE_JID")
@@ -46,6 +57,8 @@ def main():
         with proc.stdout:
             for line in iter(proc.stdout.readline, b""):
                 line = line.decode(errors="backslashreplace")
+                if args.debug:
+                    logging.info(line)
                 connection.send(
                     xmpp.protocol.Message(to=peer_jid, body=line))
 
