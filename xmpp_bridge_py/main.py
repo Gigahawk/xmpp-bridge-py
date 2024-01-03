@@ -1,6 +1,5 @@
 import sys
 import logging
-import argparse
 from subprocess import Popen, PIPE, STDOUT
 import os
 
@@ -34,28 +33,27 @@ def _get_credentials():
     return jid, peer_jid, password
 
 def _parse_args():
-    parser = argparse.ArgumentParser(
-        prog="xmpp-bridge",
-        description="Connect command-line programs to XMPP",
-        )
-    parser.add_argument("--debug", action="store_true")
-    parser.add_argument("cmd", nargs=argparse.REMAINDER)
-    args = parser.parse_args()
-    return args
+    argv = sys.argv[1:]
+    if argv[0] == "--debug":
+        debug = True
+        argv = argv[1:]
+    else:
+        debug = False
+    return debug, argv
 
 
 
 def main():
     jid, peer_jid, password = _get_credentials()
-    args = _parse_args()
+    debug, cmd = _parse_args()
     jid = xmpp.protocol.JID(jid)
-    connection = xmpp.Client(server=jid.getDomain(), debug=args.debug)
+    connection = xmpp.Client(server=jid.getDomain(), debug=debug)
     connection.connect()
     connection.auth(
         user=jid.getNode(), password=password, resource=jid.getResource())
     # https://stackoverflow.com/a/12471855
-    cmd = ["stdbuf", "-oL"] + args.cmd
-    if args.debug:
+    cmd = ["stdbuf", "-oL"] + cmd
+    if debug:
         logging.info(f"Running command {cmd}")
     with Popen(
             cmd, stdout=PIPE, stderr=STDOUT,
@@ -63,7 +61,7 @@ def main():
             ) as proc:
         with proc.stdout:
             for line in iter(proc.stdout.readline, ""):
-                if args.debug:
+                if debug:
                     logging.info(line)
                 connection.send(
                     xmpp.protocol.Message(to=peer_jid, body=line))
