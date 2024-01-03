@@ -39,9 +39,25 @@ def _parse_args():
         argv = argv[1:]
     else:
         debug = False
-    return debug, argv
-
-
+    # HACK: nixos wrappers seem to mess up string parsing,
+    # manually rebuild broken strings
+    cmd = []
+    curr_word = []
+    for word in argv:
+        curr_word.append(word)
+        if not curr_word[0].startswith('"'):
+            cmd.append(" ".join(curr_word))
+            curr_word = []
+            continue
+        if curr_word[0].startswith('"') and curr_word[-1].endswith('"'):
+            cmd.append(" ".join(curr_word))
+            curr_word = []
+            continue
+    if curr_word:
+        print("FATAL: UNCLOSED STRING IN ARGUMENTS")
+        print(sys.argv)
+        exit(1)
+    return debug, cmd
 
 def main():
     jid, peer_jid, password = _get_credentials()
