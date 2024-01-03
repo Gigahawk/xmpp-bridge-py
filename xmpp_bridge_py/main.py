@@ -53,9 +53,12 @@ def main():
     connection.connect()
     connection.auth(
         user=jid.getNode(), password=password, resource=jid.getResource())
+    # https://stackoverflow.com/a/12471855
+    cmd = ["stdbuf", "-oL"] + args.cmd
+    if args.debug:
+        logging.info(f"Running command {cmd}")
     with Popen(
-            # https://stackoverflow.com/a/12471855
-            ["stdbuf", "-oL"] + args.cmd, stdout=PIPE, stderr=STDOUT,
+            cmd, stdout=PIPE, stderr=STDOUT,
             bufsize=1, close_fds=True, text=True,
             ) as proc:
         with proc.stdout:
