@@ -30,6 +30,9 @@
                   }
                 );
               });
+            dependencies = [
+              pkgs.coreutils
+            ];
           };
           default = self.packages.${system}.xmpp-bridge-py;
         };
