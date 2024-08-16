@@ -6,7 +6,8 @@ authors = ["Jasper Chan <jasperchan515@gmail.com>"]
 
 [tool.poetry.dependencies]
 python = "^3.10"
-xmpppy = "^0.7.1"
+# Needed for python 3.12 compat, PR has been dead since end of 2023
+xmpppy = { git = "https://github.com/xmpppy/xmpppy.git", branch = "refs/pull/70/head"}
 dnspython = "^2.4.2"
 
 [tool.poetry.scripts]
