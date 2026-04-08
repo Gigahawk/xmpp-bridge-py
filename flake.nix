@@ -1,45 +1,162 @@
 {
-  description = "xmpp-bridge-py packaged using poetry2nix";
-
   inputs = {
-    flake-utils.url = "github:numtide/flake-utils";
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
-    poetry2nix = {
-      url = "github:nix-community/poetry2nix";
+    flake-utils.url = "github:numtide/flake-utils";
+
+    pyproject-nix = {
+      url = "github:pyproject-nix/pyproject.nix";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+    uv2nix = {
+      url = "github:pyproject-nix/uv2nix";
+      inputs = {
+        pyproject-nix.follows = "pyproject-nix";
+        nixpkgs.follows = "nixpkgs";
+      };
+    };
+    pyproject-build-systems = {
+      url = "github:pyproject-nix/build-system-pkgs";
+      inputs = {
+        pyproject-nix.follows = "pyproject-nix";
+        uv2nix.follows = "uv2nix";
+        nixpkgs.follows = "nixpkgs";
+      };
+    };
+
+    treefmt-nix = {
+      url = "github:numtide/treefmt-nix";
       inputs.nixpkgs.follows = "nixpkgs";
     };
   };
 
-  outputs = { self, nixpkgs, flake-utils, poetry2nix }:
-    flake-utils.lib.eachDefaultSystem (system:
+  outputs =
+    {
+      self,
+      nixpkgs,
+      flake-utils,
+      pyproject-nix,
+      uv2nix,
+      pyproject-build-systems,
+      treefmt-nix,
+      ...
+    }:
+    flake-utils.lib.eachDefaultSystem (
+      system:
       let
-        # see https://github.com/nix-community/poetry2nix/tree/master#api for more functions and examples.
-        pkgs = nixpkgs.legacyPackages.${system};
-        inherit (poetry2nix.lib.mkPoetry2Nix { inherit pkgs; }) mkPoetryApplication defaultPoetryOverrides;
+        inherit (nixpkgs) lib;
+        pkgs = import nixpkgs { inherit system; };
+        python = pkgs.python312;
+
+        workspace = uv2nix.lib.workspace.loadWorkspace { workspaceRoot = ./.; };
+        overlay = workspace.mkPyprojectOverlay {
+          sourcePreference = "wheel";
+        };
+        editableOverlay = workspace.mkEditablePyprojectOverlay {
+          root = "$REPO_ROOT";
+        };
+        hacks = pkgs.callPackage pyproject-nix.build.hacks { };
+
+        pyprojectOverrides = final: prev: {
+          # Example overrides to fix build
+          # psycopg2 = prev.psycopg2.overrideAttrs (old: {
+          #   buildInputs = (old.buildInputs or [ ]) ++ [
+          #     prev.setuptools
+          #     pkgs.libpq.pg_config
+          #   ];
+          # });
+          # casadi = hacks.nixpkgsPrebuild {
+          #   from = pkgs.python312Packages.casadi;
+          #   prev = prev.casadi;
+          # };
+
+          ## TODO: Add tests to package?
+          ## Based on https://pyproject-nix.github.io/uv2nix/patterns/testing.html
+          ## Doesn't seem to work, xmpp-bridge-py package isn't found
+          #xmpp-bridge-py = prev.xmpp-bridge-py.overrideAttrs (old: {
+          #  passthru = old.passthru // {
+          #    tests =
+          #      let
+          #        _virtualenv = final.mkVirtualEnv "xmpp-bridge-py-pytest-env" workspace.deps.all // {
+          #          xmpp-bridge-py = [ "dev" ];
+          #        };
+          #      in
+          #      (old.tests or { })
+          #      // {
+          #        pytest = pkgs.stdenv.mkDerivation {
+          #          name = "${final.xmpp-bridge-py.name}-pytest";
+          #          inherit (final.xmpp-bridge-py) src;
+          #          nativeBuildInputs = [
+          #            virtualenv
+          #            _virtualenv
+          #          ];
+          #          dontConfigure = true;
+          #          buildPhase = ''
+          #            runHook preBuild
+          #            pytest
+          #            runHook postBuild
+          #          '';
+          #        };
+          #      };
+          #  };
+          #});
+        };
+
+        pythonSet =
+          (pkgs.callPackage pyproject-nix.build.packages {
+            inherit python;
+          }).overrideScope
+            (
+              lib.composeManyExtensions [
+                pyproject-build-systems.overlays.wheel
+                overlay
+                pyprojectOverrides
+              ]
+            );
+
+        editablePythonSet = pythonSet.overrideScope editableOverlay;
+        virtualenv = editablePythonSet.mkVirtualEnv "xmpp-bridge-py-dev-env" workspace.deps.all;
+
+        inherit (pkgs.callPackages pyproject-nix.build.util { }) mkApplication;
+
+        treefmtEval = treefmt-nix.lib.evalModule pkgs ./treefmt.nix;
       in
       {
         packages = {
-          xmpp-bridge-py = mkPoetryApplication {
-            projectDir = self;
-            overrides = defaultPoetryOverrides.extend
-              (self: super: {
-                xmpppy = super.xmpppy.overridePythonAttrs
-                (
-                  old: {
-                    buildInputs = (old.buildInputs or [ ]) ++ [ super.setuptools ];
-                  }
-                );
-              });
-            dependencies = [
-              pkgs.coreutils
-            ];
+          xmpp-bridge-py = mkApplication {
+            venv = pythonSet.mkVirtualEnv "xmpp-bridge-py-app-env" workspace.deps.default;
+            package = pythonSet.xmpp-bridge-py;
           };
           default = self.packages.${system}.xmpp-bridge-py;
         };
-
-        devShells.default = pkgs.mkShell {
-          inputsFrom = [ self.packages.${system}.xmpp-bridge-py ];
-          packages = [ pkgs.poetry ];
+        formatter = treefmtEval.config.build.wrapper;
+        checks = {
+          formatting = treefmtEval.config.build.check self;
+          # Doesn't seem to work
+          # pytest = editablePythonSet.xmpp-bridge-py.passthru.tests.pytest;
         };
-      });
+        devShells = {
+          default = pkgs.mkShell {
+            packages = [
+              virtualenv
+              pkgs.uv
+              pkgs.sphinx
+              pkgs.git
+            ];
+            env = {
+              UV_NO_SYNC = "1";
+              UV_PYTHON = editablePythonSet.python.interpreter;
+              UV_PYTHON_DOWNLOADS = "never";
+            }
+            // lib.optionalAttrs pkgs.stdenv.isLinux {
+              LD_LIBRARY_PATH = lib.makeLibraryPath pkgs.pythonManylinuxPackages.manylinux1;
+            };
+            shellHook = ''
+              unset PYTHONPATH
+              export REPO_ROOT=$(git rev-parse --show-toplevel)
+              . ${virtualenv}/bin/activate
+            '';
+          };
+        };
+      }
+    );
 }
