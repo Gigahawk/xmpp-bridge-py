@@ -9,13 +9,13 @@ import xmpp
 stdout_handler = logging.StreamHandler(stream=sys.stdout)
 logging.basicConfig(
     level=logging.DEBUG,
-    format='[%(asctime)s] {%(filename)s:%(lineno)d} %(levelname)s - %(message)s',
-    handlers=[stdout_handler]
+    format="[%(asctime)s] {%(filename)s:%(lineno)d} %(levelname)s - %(message)s",
+    handlers=[stdout_handler],
 )
 
 
 def _get_credentials():
-    jid =  os.environ.get("XMPPBRIDGE_JID")
+    jid = os.environ.get("XMPPBRIDGE_JID")
     peer_jid = os.environ.get("XMPPBRIDGE_PEER_JID")
     password = os.environ.get("XMPPBRIDGE_PASSWORD")
     all_present = True
@@ -31,6 +31,7 @@ def _get_credentials():
     if not all_present:
         exit(1)
     return jid, peer_jid, password
+
 
 def _parse_args():
     argv = sys.argv[1:]
@@ -59,28 +60,32 @@ def _parse_args():
         exit(1)
     return debug, cmd
 
+
 def main():
     jid, peer_jid, password = _get_credentials()
     debug, cmd = _parse_args()
     jid = xmpp.protocol.JID(jid)
     connection = xmpp.Client(server=jid.getDomain(), debug=debug)
     connection.connect()
-    connection.auth(
-        user=jid.getNode(), password=password, resource=jid.getResource())
+    connection.auth(user=jid.getNode(), password=password, resource=jid.getResource())
     # https://stackoverflow.com/a/12471855
     cmd = ["stdbuf", "-oL"] + cmd
     if debug:
         logging.info(f"Running command {cmd}")
     with Popen(
-            cmd, stdout=PIPE, stderr=STDOUT,
-            bufsize=1, close_fds=True, text=True,
-            ) as proc:
+        cmd,
+        stdout=PIPE,
+        stderr=STDOUT,
+        bufsize=1,
+        close_fds=True,
+        text=True,
+    ) as proc:
         with proc.stdout:
             for line in iter(proc.stdout.readline, ""):
                 if debug:
                     logging.info(line)
-                connection.send(
-                    xmpp.protocol.Message(to=peer_jid, body=line))
+                connection.send(xmpp.protocol.Message(to=peer_jid, body=line))
+
 
 if __name__ == "__main__":
     main()

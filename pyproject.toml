@@ -1,3 +1,7 @@
+[build-system]
+requires = ["uv_build>=0.8.14,<0.9.0"]
+build-backend = "uv_build"
+
 [dependency-groups]
 dev = []
 
@@ -5,19 +9,9 @@ dev = []
 name = "xmpp-bridge-py"
 version = "0.1.0"
 description = "Connect command-line programs to XMPP"
-authors = [{ name = "Jasper Chan", email = "jasperchan515@gmail.com" }]
+authors = [{name = "Jasper Chan", email = "jasperchan515@gmail.com"}]
 requires-python = ">=3.10,<4"
-dependencies = [
-    "xmpppy>=0.7.3",
-    "dnspython>=2.4.2,<3",
-]
+dependencies = ["xmpppy>=0.7.3", "dnspython>=2.4.2,<3"]
 
 [project.scripts]
 xmpp-bridge = "xmpp_bridge_py.main:main"
-
-[dependency-groups]
-dev = []
-
-[build-system]
-requires = ["uv_build>=0.8.14,<0.9.0"]
-build-backend = "uv_build"
